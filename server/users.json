@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "username": "alade",
+    "password": "$2b$10$1kJkkuVNnwAd7VLYsRZG/e4dVr19DtKfSW/NzYJMvcJ.Uv7YdM7MC",
+    "bio": "dark enigma"
+  },
+  {
+    "id": 2,
+    "username": "testuser",
+    "password": "$2b$10$D0tNypEDguepbPpmomsb5OMkDjz06ulseqCr8Lq5OApU0F1/Y1KTm",
+    "bio": ""
+  }
+]
