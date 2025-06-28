@@ -5,10 +5,10 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const SECRET_KEY = 'your_secret_key'; // In a real app, use an environment variable
 
-app.use(express.json());
+app.use(express.static(path.join(__dirname, '../client/build')));
 
 // Simple JSON file for data storage (acting as our database)
 const usersFilePath = path.join(__dirname, 'users.json');
@@ -121,6 +121,10 @@ app.get('/wisdom', authenticateToken, (req, res) => {
     const wisdoms = readData(wisdomFilePath);
     const randomWisdom = wisdoms[Math.floor(Math.random() * wisdoms.length)];
     res.json(randomWisdom);
+});
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build/index.html'));
 });
 
 app.listen(PORT, () => {

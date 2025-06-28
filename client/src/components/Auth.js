@@ -10,7 +10,7 @@ function Auth({ setToken, setView }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
-    const url = isRegister ? '/register' : '/login';
+    const url = `${process.env.REACT_APP_API_URL}${isRegister ? '/register' : '/login'}`;
     const body = isRegister ? { username, password, bio } : { username, password };
 
     try {

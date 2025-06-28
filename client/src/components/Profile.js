@@ -7,7 +7,7 @@ function Profile({ token, setView }) {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await fetch('/profile', {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/profile`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -31,7 +31,7 @@ function Profile({ token, setView }) {
     e.preventDefault();
     setMessage('');
     try {
-      const response = await fetch('/profile', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -30,7 +30,7 @@ function Dashboard({ token, handleLogout, setView }) {
 
   const fetchWisdom = async () => {
     try {
-      const response = await fetch('/wisdom', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/wisdom`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
