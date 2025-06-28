@@ -24,7 +24,7 @@ if (!fs.existsSync(wisdomFilePath)) {
         { id: 2, text: "What you do not want done to yourself, do not do to others. - Confucius" },
         { id: 3, text: "The art of medicine is to cure sometimes, relieve often, comfort always. - Ibn Sina" },
         { id: 4, text: "The wise man does not lay up his own treasures. The more he gives to others, the more he has for his own. - Lao Tzu" },
-        { id: 5, text: "Happiness is the absence of the striving for happiness. - Zhuangzi" }
+        { id: 5, text: "Happiness is the absence of the striving for happiness. - Zhuangzi" } 
     ]));
 }
 
@@ -53,8 +53,7 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// API Routes (temporarily commented out for debugging)
-/*
+// API Routes
 app.post('/register', async (req, res) => {
     const { username, password, bio } = req.body;
     const users = readData(usersFilePath);
@@ -117,13 +116,12 @@ app.get('/wisdom', authenticateToken, (req, res) => {
     const randomWisdom = wisdoms[Math.floor(Math.random() * wisdoms.length)];
     res.json(randomWisdom);
 });
-*/
 
 // Serve static assets
 app.use(express.static(path.join(__dirname, '../client/build')));
 
-// Catch-all for SPA
-app.get('*', (req, res) => {
+// FIXED: Use middleware instead of route for SPA catch-all
+app.use((req, res) => {
     res.sendFile(path.join(__dirname, '../client/build/index.html'));
 });
 
