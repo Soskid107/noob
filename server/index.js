@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = 'your_secret_key'; // In a real app, use an environment variable
 
-app.use(express.static(path.join(__dirname, '../client/build')));
+app.use(express.json());
 
 // Simple JSON file for data storage (acting as our database)
 const usersFilePath = path.join(__dirname, 'users.json');
@@ -53,9 +53,7 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// Routes
-
-// Register
+// API Routes
 app.post('/register', async (req, res) => {
     const { username, password, bio } = req.body;
     const users = readData(usersFilePath);
@@ -72,7 +70,6 @@ app.post('/register', async (req, res) => {
     res.status(201).send('User registered successfully');
 });
 
-// Login
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const users = readData(usersFilePath);
@@ -90,7 +87,6 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Get user profile (protected)
 app.get('/profile', authenticateToken, (req, res) => {
     const users = readData(usersFilePath);
     const user = users.find(u => u.id === req.user.id);
@@ -101,7 +97,6 @@ app.get('/profile', authenticateToken, (req, res) => {
     }
 });
 
-// Update user profile (protected)
 app.put('/profile', authenticateToken, (req, res) => {
     const { bio } = req.body;
     let users = readData(usersFilePath);
@@ -116,13 +111,16 @@ app.put('/profile', authenticateToken, (req, res) => {
     }
 });
 
-// Get random wisdom (protected)
 app.get('/wisdom', authenticateToken, (req, res) => {
     const wisdoms = readData(wisdomFilePath);
     const randomWisdom = wisdoms[Math.floor(Math.random() * wisdoms.length)];
     res.json(randomWisdom);
 });
 
+// Serve static assets
+app.use(express.static(path.join(__dirname, '../client/build')));
+
+// Catch-all for SPA
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/build/index.html'));
 });
