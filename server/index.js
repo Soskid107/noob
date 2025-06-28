@@ -72,18 +72,29 @@ app.post('/register', async (req, res) => {
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
+    console.log(`Login attempt for user: ${username}`);
     const users = readData(usersFilePath);
     const user = users.find(u => u.username === username);
 
     if (user == null) {
+        console.log(`User ${username} not found.`);
         return res.status(400).send('Cannot find user');
     }
 
-    if (await bcrypt.compare(password, user.password)) {
-        const accessToken = jwt.sign({ username: user.username, id: user.id }, SECRET_KEY);
-        res.json({ accessToken });
-    } else {
-        res.status(401).send('Invalid credentials');
+    try {
+        console.log(`Comparing password for user: ${username}`);
+        const passwordMatch = await bcrypt.compare(password, user.password);
+        if (passwordMatch) {
+            console.log(`Password match for user: ${username}`);
+            const accessToken = jwt.sign({ username: user.username, id: user.id }, SECRET_KEY);
+            res.json({ accessToken });
+        } else {
+            console.log(`Invalid credentials for user: ${username}`);
+            res.status(401).send('Invalid credentials');
+        }
+    } catch (error) {
+        console.error(`Error during password comparison or JWT signing for user ${username}:`, error);
+        res.status(500).send('An error occurred during login.');
     }
 });
 
