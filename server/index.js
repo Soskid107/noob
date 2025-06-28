@@ -53,7 +53,8 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// API Routes
+// API Routes (temporarily commented out for debugging)
+/*
 app.post('/register', async (req, res) => {
     const { username, password, bio } = req.body;
     const users = readData(usersFilePath);
@@ -116,6 +117,7 @@ app.get('/wisdom', authenticateToken, (req, res) => {
     const randomWisdom = wisdoms[Math.floor(Math.random() * wisdoms.length)];
     res.json(randomWisdom);
 });
+*/
 
 // Serve static assets
 app.use(express.static(path.join(__dirname, '../client/build')));
