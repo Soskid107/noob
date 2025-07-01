@@ -1,43 +1,32 @@
+require('dotenv').config();
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const fs = require('fs');
 const path = require('path');
+const Joi = require('joi');
+const cors = require('cors');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SECRET_KEY = 'your_secret_key'; // In a real app, use an environment variable
+const SECRET_KEY = process.env.SECRET_KEY;
+const useSSL = process.env.DB_SSL === 'true';
+
+const pool = new Pool({
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: parseInt(process.env.DB_PORT),
+    ...(useSSL && { ssl: { rejectUnauthorized: false } })
+});
 
 app.use(express.json());
+app.use(cors({
+    origin: 'http://localhost:3001', // allow your frontend dev server
+    credentials: true // if you use cookies or need credentials
+}));
 
-// Simple JSON file for data storage (acting as our database)
-const usersFilePath = path.join(__dirname, 'users.json');
-const wisdomFilePath = path.join(__dirname, 'wisdom.json');
-
-// Initialize data files if they don't exist
-if (!fs.existsSync(usersFilePath)) {
-    fs.writeFileSync(usersFilePath, JSON.stringify([]));
-}
-if (!fs.existsSync(wisdomFilePath)) {
-    fs.writeFileSync(wisdomFilePath, JSON.stringify([
-        { id: 1, text: "The journey of a thousand miles begins with a single step. - Lao Tzu" },
-        { id: 2, text: "What you do not want done to yourself, do not do to others. - Confucius" },
-        { id: 3, text: "The art of medicine is to cure sometimes, relieve often, comfort always. - Ibn Sina" },
-        { id: 4, text: "The wise man does not lay up his own treasures. The more he gives to others, the more he has for his own. - Lao Tzu" },
-        { id: 5, text: "Happiness is the absence of the striving for happiness. - Zhuangzi" } 
-    ]));
-}
-
-// Helper to read data
-const readData = (filePath) => {
-    const data = fs.readFileSync(filePath, 'utf8');
-    return JSON.parse(data);
-};
-
-// Helper to write data
-const writeData = (filePath, data) => {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-};
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -55,38 +44,85 @@ const authenticateToken = (req, res, next) => {
 
 // API Routes
 app.post('/register', async (req, res) => {
-    const { username, password, bio } = req.body;
-    const users = readData(usersFilePath);
+    // Define validation schema
+    const schema = Joi.object({
+        username: Joi.string().alphanum().min(3).max(30).required(),
+        password: Joi.string().min(6).max(128).required(),
+        bio: Joi.string().max(500).allow('', null)
+    });
 
-    if (users.find(u => u.username === username)) {
-        return res.status(400).send('Username already exists');
+    // Validate the request body
+    const { error, value } = schema.validate(req.body);
+
+    if (error) {
+        return res.status(400).send(error.details[0].message);
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = { id: users.length + 1, username, password: hashedPassword, bio: bio || '' };
-    users.push(newUser);
-    writeData(usersFilePath, users);
+    const { username, password, bio } = value;
 
-    res.status(201).send('User registered successfully');
+    try {
+         // Check if username already exists
+         const userCheck = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+         if (userCheck.rows.length > 0) { // Fixed: userCheck.rows.lenghh
+             return res.status(400).send('Username already exists');
+          }
+
+         const hashedPassword = await bcrypt.hash(password, 10);
+
+
+         // insert new user into the database
+ const result = await pool.query(
+      'INSERT INTO users (username, password, bio) VALUES ($1, $2, $3) RETURNING id',
+        [username, hashedPassword, bio || '']
+      );
+     // No additional code needed here, but you could log or handle post-registration logic if desired    
+          res.status(201).send('User registered successfully');
+      } catch (error) {
+         console.error('Error during registration:', error);
+         res.status(500).json({
+            message: 'An error occurred during registration.',
+            error: error.message,
+            stack: error.stack
+         });
+      }
 });
 
 app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-    console.log(`Login attempt for user: ${username}`);
-    const users = readData(usersFilePath);
-    const user = users.find(u => u.username === username);
+    // Define validation schema
+    const schema = Joi.object({
+        username: Joi.string().alphanum().min(3).max(30).required(),
+        password: Joi.string().min(6).max(128).required()
+    });
 
-    if (user == null) {
-        console.log(`User ${username} not found.`);
-        return res.status(400).send('Cannot find user');
+    // Validate the request body
+    const { error, value } = schema.validate(req.body);
+
+    if (error) {
+        return res.status(400).send(error.details[0].message);
     }
 
+    const { username, password } = value;
+
+    console.log(`Login attempt for user: ${username}`);
+
     try {
+        const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+        const user = result.rows[0];
+
+        if (!user) {
+            console.log(`User ${username} not found.`);
+            return res.status(400).send('Cannot find user');
+        }
+
         console.log(`Comparing password for user: ${username}`);
         const passwordMatch = await bcrypt.compare(password, user.password);
         if (passwordMatch) {
             console.log(`Password match for user: ${username}`);
-            const accessToken = jwt.sign({ username: user.username, id: user.id }, SECRET_KEY);
+            const accessToken = jwt.sign(
+                { username: user.username, id: user.id },
+                SECRET_KEY,
+                { expiresIn: '1h' }
+            );
             res.json({ accessToken });
         } else {
             console.log(`Invalid credentials for user: ${username}`);
@@ -97,35 +133,61 @@ app.post('/login', async (req, res) => {
         res.status(500).send('An error occurred during login.');
     }
 });
-
-app.get('/profile', authenticateToken, (req, res) => {
-    const users = readData(usersFilePath);
-    const user = users.find(u => u.id === req.user.id);
-    if (user) {
-        res.json({ username: user.username, bio: user.bio });
-    } else {
-        res.status(404).send('User not found');
+app.get('/profile', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT username, bio FROM users WHERE id = $1', [req.user.id]);
+        const user = result.rows[0];
+        if (user) {
+            res.json({ username: user.username, bio: user.bio });
+        } else {
+            res.status(404).send('User not found');
+        }
+    } catch (error) {
+        console.error('Error fetching profile:', error);
+        res.status(500).send('An error occurred while fetching profile.');
     }
 });
 
-app.put('/profile', authenticateToken, (req, res) => {
-    const { bio } = req.body;
-    let users = readData(usersFilePath);
-    const userIndex = users.findIndex(u => u.id === req.user.id);
+app.put('/profile', authenticateToken, async (req, res) => {
+    // Define validation schema
+    const schema = Joi.object({
+        bio: Joi.string().max(500).allow('', null)
+    });
 
-    if (userIndex > -1) {
-        users[userIndex].bio = bio;
-        writeData(usersFilePath, users);
-        res.send('Profile updated successfully');
-    } else {
-        res.status(404).send('User not found');
+    // Validate the request body
+    const { error, value } = schema.validate(req.body);
+
+    if (error) {
+        return res.status(400).send(error.details[0].message);
+    }
+
+    const { bio } = value;
+    try {
+        const result = await pool.query('UPDATE users SET bio = $1 WHERE id = $2 RETURNING id', [bio, req.user.id]);
+        if (result.rowCount > 0) {
+            res.send('Profile updated successfully');
+        } else {
+            res.status(404).send('User not found');
+        }
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        res.status(500).send('An error occurred while updating profile.');
     }
 });
 
-app.get('/wisdom', authenticateToken, (req, res) => {
-    const wisdoms = readData(wisdomFilePath);
-    const randomWisdom = wisdoms[Math.floor(Math.random() * wisdoms.length)];
-    res.json(randomWisdom);
+app.get('/wisdom', authenticateToken, async (req, res) => {
+    try {
+        // Fetch a random wisdom from the database
+        const result = await pool.query('SELECT * FROM wisdom ORDER BY RANDOM() LIMIT 1');
+        if (result.rows.length > 0) {
+            res.json(result.rows[0]);
+        } else {
+            res.status(404).send('No wisdom found.');
+        }
+    } catch (error) {
+        console.error('Error fetching wisdom:', error);
+        res.status(500).send('An error occurred while fetching wisdom.');
+    }
 });
 
 // Serve static assets
